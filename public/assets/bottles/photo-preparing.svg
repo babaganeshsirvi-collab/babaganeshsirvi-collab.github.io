@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="768" height="1152" viewBox="0 0 768 1152">
+  <g fill="none" stroke="#aab48f" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity=".75">
+    <path d="M262 425h64l28-42h60l28 42h64a22 22 0 0 1 22 22v174a22 22 0 0 1-22 22H262a22 22 0 0 1-22-22V447a22 22 0 0 1 22-22Z"/>
+    <circle cx="384" cy="531" r="61"/>
+    <path d="M482 468h1"/>
+  </g>
+  <g fill="#c7ccbb" text-anchor="middle" font-family="Arial, sans-serif">
+    <text x="384" y="737" font-size="32">Product photo</text>
+    <text x="384" y="785" font-size="32">being prepared</text>
+  </g>
+</svg>

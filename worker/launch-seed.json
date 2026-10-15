@@ -1,0 +1,11 @@
+{
+  "region": "Rajasthan, India",
+  "country": "IN",
+  "dineInDiscount": 8,
+  "deliveryDiscount": 5,
+  "supportEmail": "ganesh@bababeardo.world",
+  "deliveryPincodes": [],
+  "orderingEnabled": false,
+  "liquorDeliveryEnabled": true,
+  "policiesApproved": false
+}

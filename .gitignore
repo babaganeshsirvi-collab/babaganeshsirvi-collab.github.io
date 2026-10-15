@@ -1,0 +1,33 @@
+# Dependencies, generated output and local Cloudflare state
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+.private/
+
+# Private runtime data, credentials and backups
+.admin/
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.db-*
+*.pem
+*.key
+*credentials*.json
+*secrets*.json
+backups/
+*.log
+.DS_Store
+
+# Local image-generation tools, references and internal hosting metadata
+.image-refinement/
+.image-tools/
+assets-working/
+.openai/
+riyasat-source-backup/

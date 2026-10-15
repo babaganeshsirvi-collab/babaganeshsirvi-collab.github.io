@@ -1,0 +1,92 @@
+[
+  {
+    "category": "Single Malts",
+    "source": "https://static.livcheers.com/static/media/images/category/single-malts.webp",
+    "local": "assets/bar/single-malts.webp"
+  },
+  {
+    "category": "World Whisky",
+    "source": "https://static.livcheers.com/static/media/images/category/world-whisky.webp",
+    "local": "assets/bar/world-whisky.webp"
+  },
+  {
+    "category": "Made in India Whisky",
+    "source": "https://static.livcheers.com/static/media/images/category/made-in-india-whisky.webp",
+    "local": "assets/bar/made-in-india-whisky.webp"
+  },
+  {
+    "category": "Blended Scotch",
+    "source": "https://static.livcheers.com/static/media/images/category/blended-scotch.webp",
+    "local": "assets/bar/blended-scotch.webp"
+  },
+  {
+    "category": "Gin",
+    "source": "https://static.livcheers.com/static/media/images/category/gin.webp",
+    "local": "assets/bar/gin.webp"
+  },
+  {
+    "category": "Rum",
+    "source": "https://static.livcheers.com/static/media/images/category/rum.webp",
+    "local": "assets/bar/rum.webp"
+  },
+  {
+    "category": "Champagne",
+    "source": "https://static.livcheers.com/static/media/images/category/champagne.webp",
+    "local": "assets/bar/champagne.webp"
+  },
+  {
+    "category": "Vodka",
+    "source": "https://static.livcheers.com/static/media/images/category/vodka.webp",
+    "local": "assets/bar/vodka.webp"
+  },
+  {
+    "category": "Ready to Drink",
+    "source": "https://static.livcheers.com/static/media/images/category/ready-to-drink.webp",
+    "local": "assets/bar/ready-to-drink.webp"
+  },
+  {
+    "category": "Beers",
+    "source": "https://static.livcheers.com/static/media/images/category/beers.webp",
+    "local": "assets/bar/beers.webp"
+  },
+  {
+    "category": "Sake",
+    "source": "https://static.livcheers.com/static/media/images/category/sake.webp",
+    "local": "assets/bar/sake.webp"
+  },
+  {
+    "category": "Liqueurs",
+    "source": "https://static.livcheers.com/static/media/images/category/liqueurs.webp",
+    "local": "assets/bar/liqueurs.webp"
+  },
+  {
+    "category": "Brandy",
+    "source": "https://static.livcheers.com/static/media/images/category/brandy.webp",
+    "local": "assets/bar/brandy.webp"
+  },
+  {
+    "category": "Tequila",
+    "source": "https://static.livcheers.com/static/media/images/category/tequila.webp",
+    "local": "assets/bar/tequila.webp"
+  },
+  {
+    "category": "Sparkling Wine",
+    "source": "https://static.livcheers.com/static/media/images/category/sparkling-wine.webp",
+    "local": "assets/bar/sparkling-wine.webp"
+  },
+  {
+    "category": "Ros\u00e9 Wine",
+    "source": "https://static.livcheers.com/static/media/images/category/rose-wine.webp",
+    "local": "assets/bar/rose-wine.webp"
+  },
+  {
+    "category": "Red Wine",
+    "source": "https://static.livcheers.com/static/media/images/category/red-wine.webp",
+    "local": "assets/bar/red-wine.webp"
+  },
+  {
+    "category": "White Wine",
+    "source": "https://static.livcheers.com/static/media/images/category/white-wine.webp",
+    "local": "assets/bar/white-wine.webp"
+  }
+]

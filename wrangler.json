@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "babas-bar-restro",
+  "main": "dist/server/index.js",
+  "no_bundle": true,
+  "compatibility_date": "2026-01-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "babas-restro-db",
+      "database_id": "5a54d97d-f6e2-43e9-99c0-12178ae703b0",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "BR_ADMIN_REQUIRE_PASSWORD_CHANGE": "true"
+  },
+  "account_id": "b555f83cca89e1274519c6579cb6bdf7"
+}
