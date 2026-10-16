@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "babas-bar-restro",
+  "account_id": "b555f83cca89e1274519c6579cb6bdf7",
+  "pages_build_output_dir": "pages-dist",
+  "compatibility_date": "2026-01-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "babas-restro-db",
+      "database_id": "5a54d97d-f6e2-43e9-99c0-12178ae703b0"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ADMIN_PASSWORD_HASHER",
+        "class_name": "AdminPasswordHasher",
+        "script_name": "babas-bar-restro"
+      }
+    ]
+  },
+  "vars": {
+    "BR_ADMIN_REQUIRE_PASSWORD_CHANGE": "true"
+  }
+}

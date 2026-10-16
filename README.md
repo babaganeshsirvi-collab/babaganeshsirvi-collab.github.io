@@ -1,8 +1,8 @@
 # Baba's Bar & Restro
 
-Portable GitHub source for a Cloudflare Worker with static assets and D1 storage. The site is publicly deployed on [Cloudflare Workers](https://babas-bar-restro.baba-ganeshsirvi.workers.dev). The configuration currently uses that `workers.dev` address. The requested `baba.in` domain is pending Cloudflare nameserver activation; no domain routes or DNS changes have been applied. See [deployment status](docs/deployment-status.md).
+Portable GitHub source for Cloudflare Workers and Pages with static assets, D1 storage and internal password hashing. The site is publicly deployed on [Cloudflare Workers](https://babas-bar-restro.baba-ganeshsirvi.workers.dev), with source in [GitHub](https://github.com/babaganeshsirvi-collab/babaganeshsirvi-collab.github.io). The owner selected `bar.bababeardo.world` for a separate Cloudflare Pages deployment, preserving the existing main website and GoDaddy nameservers. Pages authorization and the new subdomain record are still pending; no existing DNS records have been changed. See [deployment status](docs/deployment-status.md).
 
-The current catalogue has 1,954 products. The copied snapshot contains 482 refined image entries; image refinement and visual review are still ongoing. All referenced product image files are included. Public menu, category descriptions, pricing, cart, favourites and current branding are preserved.
+The current catalogue has 1,954 products. The snapshot contains 481 ImageGen-refined image entries and one separately counted AI-assisted cutout; image refinement and visual review are still ongoing. All referenced product image files are included. Public menu, category descriptions, pricing, cart, favourites and current branding are preserved.
 
 ## Local verification
 
@@ -29,6 +29,12 @@ After the owner signs in to a verified Cloudflare account, authorizes the intend
 
 The website can be public while its GitHub repository stays private. The `private: true` value in `package.json` prevents accidental npm publication; GitHub repository visibility is selected separately. The repository contains the application source and public assets. Private account tokens, credentials and runtime database files are excluded. The earlier repository history is preserved; its original README is archived in [docs](docs/previous-repository-readme.md).
 
+## Separate subdomain with Pages
+
+The Pages package supports a subdomain on external GoDaddy DNS. Follow [the Pages deployment guide](docs/pages-deployment.md). Deploy the existing Worker first so its private `AdminPasswordHasher` namespace is available, then use `npm run deploy:pages`. Pages uses the same D1 database and internal hashing namespace, with the same private admin runtime secrets. Do not register another database, reset credentials, replace the main website, or change nameservers.
+
+The production Worker now offloads the unchanged 310,000-iteration password hash through an internal Durable Object. Live login, logout, password rotation and revoked-session checks passed. Owner credentials are saved only in the ignored private login file. See [admin authentication](docs/admin-auth.md).
+
 ## Optional image uploads
 
 R2 is not required for the initial catalogue launch. Without it, admin image uploads report that storage is not connected, and existing static images remain available. After the owner enables R2 and approves creating a private bucket, add its actual binding to `wrangler.json`:
@@ -46,5 +52,7 @@ Do not enable public bucket access. Uploads are served by the Worker; upload wri
 Service settings preserve Rajasthan-only delivery within India, dine-in 8% off, delivery 5% off, 24/7 hours and public support `ganesh@bababeardo.world`. Restaurant phone/address are not public. Existing D1 admin edits persist across redeployments; seeds initialize only missing settings. Keep private database backups and test restoration before taking real orders. No existing Python-preview database or legacy store content is migrated automatically.
 
 The lockfile pins tooling. Miniflare stays on its compatible v4 API, with current patched Sharp and Undici overrides; Wrangler uses its own supported runtime. Re-run the tests after dependency changes.
+
+The example in `docs/github-actions-ci.yml.example` is inactive. Build and test checks were run locally; automatic GitHub Actions or Cloudflare Git integration is not configured.
 
 Official references: [Workers GitHub integration](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/), [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/), [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/), [runtime secrets](https://developers.cloudflare.com/workers/configuration/secrets/).

@@ -10,6 +10,7 @@ await build({
   format: 'esm',
   platform: 'browser',
   target: 'es2022',
+  external: ['cloudflare:workers'],
   outfile: 'dist/server/index.js',
 });
 console.log('Built public assets and Worker. No deployment performed.');

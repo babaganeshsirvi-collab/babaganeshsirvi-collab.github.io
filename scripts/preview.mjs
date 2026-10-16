@@ -9,6 +9,7 @@ const mf = new Miniflare({
   port: 8082,
   d1Databases: ['DB'],
   r2Buckets: ['BUCKET'],
+  durableObjects: { ADMIN_PASSWORD_HASHER: { className: 'AdminPasswordHasher', useSQLite: true } },
   assets: {
     directory: 'dist/client', binding: 'ASSETS',
     routerConfig: { has_user_worker: true, invoke_user_worker_ahead_of_assets: true },

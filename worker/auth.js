@@ -1,15 +1,10 @@
-import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
-import { sha256 } from '@noble/hashes/sha2.js';
-
 const encoder = new TextEncoder();
 const ADMIN_TTL = 8 * 3600;
 const CUSTOMER_TTL = 7 * 86400;
-const PASSWORD_ITERATIONS = 310000;
 const COOKIE_NAMES = { admin: 'babas_session', customer: 'babas_customer' };
 const now = () => Math.floor(Date.now() / 1000);
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const hex = bytes => Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
-const fromHex = value => Uint8Array.from(value.match(/../g), pair => parseInt(pair, 16));
 const randomHex = size => hex(crypto.getRandomValues(new Uint8Array(size)));
 const query = (env, sql, ...args) => {
   if (!env.DB) throw fail('Account storage is unavailable. Please try again later.', 503);
@@ -62,16 +57,18 @@ export async function authenticate(request, env, kind) {
   return { ...session, tokenHash, ...(kind === 'customer' ? { phone: session.subject } : {}) };
 }
 
-async function passwordHash(password, salt) {
-  const input = encoder.encode(password), saltBytes = fromHex(salt);
+async function passwordHash(env, password, salt) {
   try {
-    const material = await crypto.subtle.importKey('raw', input, 'PBKDF2', false, ['deriveBits']);
-    return hex(new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: saltBytes, iterations: PASSWORD_ITERATIONS, hash: 'SHA-256' }, material, 256)));
-  } catch (error) {
-    // Workerd limits native PBKDF2 to 100,000 iterations. Keep the existing local
-    // 310,000-iteration hash compatible instead of silently weakening or resetting it.
-    if (!/iteration|100000|100,000|not supported/i.test(String(error?.message))) throw error;
-    return hex(await pbkdf2Async(sha256, input, saltBytes, { c: PASSWORD_ITERATIONS, dkLen: 32, asyncTick: 10 }));
+    const namespace = env.ADMIN_PASSWORD_HASHER;
+    if (!namespace || typeof namespace.idFromName !== 'function' || typeof namespace.get !== 'function') throw Error();
+    const stub = namespace.get(namespace.idFromName('admin-pbkdf2-v1'));
+    if (typeof stub?.derive !== 'function') throw Error();
+    const hashed = await stub.derive(password, salt);
+    if (typeof hashed !== 'string' || !/^[a-f0-9]{64}$/.test(hashed)) throw Error();
+    return hashed;
+  } catch {
+    // No fallback here: expensive derivation must stay inside the Durable Object.
+    throw fail('Password verification is temporarily unavailable. Please try again.', 503);
   }
 }
 
@@ -100,7 +97,7 @@ export async function adminLogin(request, env, body) {
   await query(env, 'DELETE FROM br_rate WHERE created<=?', timestamp - 86400).run();
   const stored = await credentials(env);
   if (typeof body?.username !== 'string' || body.username.length > 100 || typeof body?.password !== 'string' || body.password.length > 256) throw fail('Incorrect username or password.', 401);
-  const hashed = await passwordHash(body.password, stored.salt);
+  const hashed = await passwordHash(env, body.password, stored.salt);
   if (!equal(body.username, stored.username) || !equal(hashed, stored.hash)) throw fail('Incorrect username or password.', 401);
   await query(env, 'DELETE FROM br_rate WHERE key=?', key).run();
   const issued = await issueSession(env, 'admin', stored.username);
@@ -120,9 +117,9 @@ export async function changePassword(request, env, session, body) {
   const current = body?.current, password = body?.password;
   if (typeof current !== 'string' || current.length > 256 || typeof password !== 'string' || password.length < 10 || password.length > 128) throw fail('Use a new password of 10–128 characters.');
   const stored = await credentials(env);
-  if (!equal(await passwordHash(current, stored.salt), stored.hash)) throw fail('Current password is incorrect.', 401);
+  if (!equal(await passwordHash(env, current, stored.salt), stored.hash)) throw fail('Current password is incorrect.', 401);
   if (password === current) throw fail('Choose a different password from your current password.');
-  const salt = randomHex(16), hash = await passwordHash(password, salt);
+  const salt = randomHex(16), hash = await passwordHash(env, password, salt);
   const result = await env.DB.batch([
     query(env, 'UPDATE br_credentials SET salt=?,hash=? WHERE id=1 AND salt=? AND hash=?', salt, hash, stored.salt, stored.hash),
     query(env, "DELETE FROM br_sessions WHERE kind='admin'")

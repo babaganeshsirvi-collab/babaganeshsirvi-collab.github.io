@@ -1,6 +1,8 @@
 # Dependencies, generated output and local Cloudflare state
 node_modules/
 dist/
+pages-dist/
+.pages-deploy/
 .wrangler/
 .dev.vars
 .dev.vars.*

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { pbkdf2Sync, webcrypto } from 'node:crypto';
+import { derivePasswordHash } from '../worker/password-kdf.js';
 import { authenticate, adminLogin, adminLogout, adminPasswordIsDefault, changePassword, customerConfigured, sendOtp, verifyOtp, customerProfile, saveCustomer, customerLogout } from '../worker/auth.js';
 
 class Statement {
@@ -31,9 +32,17 @@ function setup() {
   };
   const salt = '00f17ce8526a93bdaf243256aec137d4';
   const password = 'a different test password';
-  const env = { DB, BR_ADMIN_USERNAME: 'test-admin', BR_ADMIN_SALT: salt,
+  const rpc = [];
+  const ADMIN_PASSWORD_HASHER = {
+    idFromName(name) { assert.equal(name, 'admin-pbkdf2-v1'); return 'test-hasher-id'; },
+    get(id) {
+      assert.equal(id, 'test-hasher-id');
+      return { async derive(value, saltHex) { rpc.push({ password: value, salt: saltHex }); return derivePasswordHash(value, saltHex); } };
+    }
+  };
+  const env = { DB, ADMIN_PASSWORD_HASHER, BR_ADMIN_USERNAME: 'test-admin', BR_ADMIN_SALT: salt,
     BR_ADMIN_HASH: pbkdf2Sync(password, Buffer.from(salt, 'hex'), 310000, 32, 'sha256').toString('hex') };
-  return { sqlite, env, password };
+  return { sqlite, env, password, rpc };
 }
 const request = (path, options = {}) => new Request('https://babas.test' + path, {
   method: options.method || 'POST', headers: { Origin: 'https://babas.test', 'CF-Connecting-IP': options.ip || '203.0.113.5',
@@ -41,7 +50,7 @@ const request = (path, options = {}) => new Request('https://babas.test' + path,
 });
 const rejects = (promise, status) => assert.rejects(promise, error => error.status === status);
 
-test('admin credentials preserve local 310k PBKDF2 hex salt; durable hashed sessions and CSRF protect writes', async () => {
+test('admin credentials preserve 310k PBKDF2 through the internal hasher; hashed sessions and CSRF protect writes', async () => {
   const { sqlite, env, password } = setup();
   await rejects(adminLogin(request('/api/login'), env, { username: 'test-admin', password: 'wrong' }), 401);
   const signed = await adminLogin(request('/api/login'), env, { username: 'test-admin', password });
@@ -64,25 +73,82 @@ test('admin credentials preserve local 310k PBKDF2 hex salt; durable hashed sess
   sqlite.close();
 });
 
-test('Workers 100k PBKDF2 ceiling uses a compatible 310k fallback', async () => {
-  const { sqlite, env, password } = setup();
+test('password helper preserves exact 310k vectors under native WebCrypto and the Workers iteration cap', async () => {
   const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
-  const wrapped = { getRandomValues: array => webcrypto.getRandomValues(array), subtle: {
-    digest: (...args) => webcrypto.subtle.digest(...args), importKey: (...args) => webcrypto.subtle.importKey(...args),
-    deriveBits() { throw new Error('PBKDF2 iteration counts above 100000 are not supported'); }
-  } };
-  Object.defineProperty(globalThis, 'crypto', { configurable: true, value: wrapped });
+  const vectors = [
+    { password: 'runtime test admin password', salt: 'd63e8200397fa71b5a9236b00c1ef725' },
+    { password: 'नमस्ते-🍊-a password', salt: '00F17CE8526A93BDAF243256AEC137D4' }
+  ];
+  let cappedCalls = 0;
   try {
-    const result = await adminLogin(request('/api/login'), env, { username: 'test-admin', password });
-    assert.ok(result.payload.csrf);
-  } finally { Object.defineProperty(globalThis, 'crypto', cryptoDescriptor); sqlite.close(); }
+    for (const vector of vectors) {
+      const expected = pbkdf2Sync(vector.password, Buffer.from(vector.salt, 'hex'), 310000, 32, 'sha256').toString('hex');
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
+      assert.equal(await derivePasswordHash(vector.password, vector.salt), expected);
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: { subtle: {
+        importKey: (...args) => webcrypto.subtle.importKey(...args),
+        deriveBits(parameters) {
+          cappedCalls++;
+          assert.equal(parameters.iterations, 310000);
+          throw new Error('PBKDF2 iteration counts above 100000 are not supported');
+        }
+      } } });
+      assert.equal(await derivePasswordHash(vector.password, vector.salt), expected);
+      assert.notEqual(expected, pbkdf2Sync(vector.password, Buffer.from(vector.salt, 'hex'), 100000, 32, 'sha256').toString('hex'));
+    }
+    assert.equal(cappedCalls, vectors.length);
+  } finally { Object.defineProperty(globalThis, 'crypto', cryptoDescriptor); }
+});
+
+test('password helper rejects invalid input and propagates unrelated native crypto failure', async () => {
+  for (const [password, salt] of [[null, 'ab'.repeat(16)], ['x'.repeat(257), 'ab'.repeat(16)], ['secret', 'ab'], ['secret', 'zz'.repeat(16)]]) {
+    await assert.rejects(derivePasswordHash(password, salt), TypeError);
+  }
+  const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  const failure = new Error('Key material is unavailable');
+  Object.defineProperty(globalThis, 'crypto', { configurable: true, value: { subtle: { importKey() { throw failure; } } } });
+  try { await assert.rejects(derivePasswordHash('secret', 'ab'.repeat(16)), error => error === failure); }
+  finally { Object.defineProperty(globalThis, 'crypto', cryptoDescriptor); }
+});
+
+test('missing or failing internal hashing and malformed RPC results fail closed without main Worker derivation', async () => {
+  const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  let localDerivations = 0;
+  Object.defineProperty(globalThis, 'crypto', { configurable: true, value: {
+    getRandomValues: array => webcrypto.getRandomValues(array),
+    subtle: {
+      digest: (...args) => webcrypto.subtle.digest(...args),
+      importKey() { localDerivations++; throw new Error('PBKDF2 iteration counts above 100000 are not supported'); },
+      deriveBits() { localDerivations++; throw new Error('PBKDF2 iteration counts above 100000 are not supported'); }
+    }
+  } });
+  const cases = [
+    undefined,
+    { idFromName() { throw new Error('namespace unavailable'); }, get() { throw new Error('must not get'); } },
+    { idFromName: () => 'id', get() { throw new Error('object unavailable'); } },
+    { idFromName: () => 'id', get: () => ({ derive() { throw new Error('internal RPC failed'); } }) },
+    { idFromName: () => 'id', get: () => ({}) },
+    ...[undefined, null, {}, 'a'.repeat(63), 'z'.repeat(64), 'A'.repeat(64)].map(value => ({ idFromName: () => 'id', get: () => ({ derive: async () => value }) }))
+  ];
+  try {
+    for (const ADMIN_PASSWORD_HASHER of cases) {
+      const { sqlite, env, password } = setup();
+      try {
+        await rejects(adminLogin(request('/api/login'), { ...env, ADMIN_PASSWORD_HASHER }, { username: 'test-admin', password }), 503);
+        assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM br_sessions').get().count, 0);
+      } finally { sqlite.close(); }
+    }
+    assert.equal(localDerivations, 0, 'authentication must never import or derive a local password key');
+  } finally { Object.defineProperty(globalThis, 'crypto', cryptoDescriptor); }
 });
 
 test('failed admin attempts have a durable throttle and missing configuration fails closed', async () => {
-  const { sqlite, env } = setup();
+  const { sqlite, env, rpc } = setup();
   for (let i = 0; i < 5; i++) await rejects(adminLogin(request('/api/login'), env, { username: 'test-admin', password: 'bad' }), 401);
+  assert.equal(rpc.length, 5);
   await rejects(adminLogin(request('/api/login'), { ...env }, { username: 'test-admin', password: 'bad' }), 429);
-  await rejects(adminLogin(request('/api/login', { ip: '203.0.113.6' }), { DB: env.DB }, {}), 401); // Persisted credentials survive secret removal.
+  assert.equal(rpc.length, 5, 'durable rate gate must reject before calling the hasher');
+  await rejects(adminLogin(request('/api/login', { ip: '203.0.113.6' }), { DB: env.DB, ADMIN_PASSWORD_HASHER: env.ADMIN_PASSWORD_HASHER }, {}), 401); // Persisted credentials survive secret removal.
   const missing = setup();
   await rejects(adminLogin(request('/api/login'), { DB: missing.env.DB }, {}), 503);
   sqlite.close(); missing.sqlite.close();
@@ -97,6 +163,8 @@ test('password change invalidates all admin sessions and keeps customer sessions
   await rejects(changePassword(request('/api/password', { cookie: first.cookie, csrf: session.csrf }), env, session, { current: 'wrong', password: 'replacement test password' }), 401);
   const changed = await changePassword(request('/api/password', { cookie: first.cookie, csrf: session.csrf }), env, session, { current: password, password: 'replacement test password' });
   assert.equal(changed.payload.changed, true);
+  const stored = sqlite.prepare('SELECT salt,hash FROM br_credentials WHERE id=1').get();
+  assert.equal(stored.hash, pbkdf2Sync('replacement test password', Buffer.from(stored.salt, 'hex'), 310000, 32, 'sha256').toString('hex'));
   env.BR_ADMIN_REQUIRE_PASSWORD_CHANGE = 'true';
   assert.equal(await adminPasswordIsDefault(env), false);
   assert.equal(await authenticate(request('/api/session', { method: 'GET', cookie: second.cookie }), env, 'admin'), null);
@@ -104,6 +172,30 @@ test('password change invalidates all admin sessions and keeps customer sessions
   await rejects(adminLogin(request('/api/login'), env, { username: 'test-admin', password }), 401);
   assert.ok((await adminLogin(request('/api/login'), env, { username: 'test-admin', password: 'replacement test password' })).cookie);
   sqlite.close();
+});
+
+test('password change preserves credentials and sessions when either hashing RPC fails', async () => {
+  for (const failingCall of [1, 2]) {
+    const { sqlite, env, password } = setup();
+    try {
+      const signed = await adminLogin(request('/api/login'), env, { username: 'test-admin', password });
+      const req = request('/api/password', { cookie: signed.cookie, csrf: signed.payload.csrf });
+      const session = await authenticate(req, env, 'admin');
+      const before = sqlite.prepare('SELECT username,salt,hash FROM br_credentials WHERE id=1').get();
+      let calls = 0;
+      const unavailable = { ...env, ADMIN_PASSWORD_HASHER: {
+        idFromName: () => 'test-hasher-id',
+        get: () => ({ async derive(value, salt) {
+          if (++calls === failingCall) throw new Error('DO unavailable');
+          return derivePasswordHash(value, salt);
+        } })
+      } };
+      await rejects(changePassword(req, unavailable, session, { current: password, password: 'replacement test password' }), 503);
+      assert.deepEqual(sqlite.prepare('SELECT username,salt,hash FROM br_credentials WHERE id=1').get(), before);
+      assert.ok(await authenticate(request('/api/session', { method: 'GET', cookie: signed.cookie }), env, 'admin'));
+      assert.equal(calls, failingCall);
+    } finally { sqlite.close(); }
+  }
 });
 
 test('OTP absent configuration and provider failure never return success', async () => {
